@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>لوحة إدارة المدرسة — Students Admin</title>
+  <style>
+    :root{
+      --bg: #f4f7fb;
+      --card: #ffffff;
+      --accent: #0b74de;
+      --muted: #6b7280;
+      --danger: #ef4444;
+      --success: #10b981;
+      --glass: rgba(11,116,222,0.08);
+    }
+    body{
+      margin:0;
+      font-family: "Segoe UI", Tahoma, Arial, "Noto Kufi Arabic", sans-serif;
+      background: linear-gradient(180deg,var(--bg),#eef3fb);
+      padding:28px;
+      color:#111827;
+    }
+    .container{max-width:1100px;margin:0 auto}
+    header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;gap:12px}
+    h1{font-size:1.4rem;color:var(--accent);margin:0}
+    .controls{display:flex;gap:8px;align-items:center}
+    input[type="text"], input[type="number"], select {
+      padding:10px;border-radius:8px;border:1px solid #e5e7eb;background:white;
+      min-width:140px;box-sizing:border-box;
+    }
+    button {
+      background:var(--accent); color:white; border:none; padding:10px 14px; border-radius:8px;
+      cursor:pointer;font-weight:600;
+    }
+    button.ghost{background:transparent;color:var(--accent);border:1px solid var(--glass)}
+    button.danger{background:var(--danger)}
+    .card{background:var(--card);border-radius:12px;padding:18px;box-shadow:0 8px 30px rgba(14,30,37,0.06)}
+    .top-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:12px;flex-wrap:wrap}
+    .table-wrap{overflow:auto;margin-top:10px}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:10px 12px;text-align:right;border-bottom:1px solid #eef2f7}
+    th{background:transparent;color:var(--muted);font-weight:600;font-size:0.95rem}
+    td.actions{display:flex;gap:8px;justify-content:flex-start}
+    .badge{display:inline-block;padding:6px 10px;border-radius:999px;background:var(--glass);color:var(--accent);font-weight:700}
+    .small{font-size:0.9rem;color:var(--muted)}
+
+    /* Modal */
+    .modal-backdrop{position:fixed;inset:0;background:rgba(2,6,23,0.45);display:none;align-items:center;justify-content:center;padding:20px;z-index:50}
+    .modal{background:var(--card);border-radius:12px;padding:18px;width:100%;max-width:520px;box-shadow:0 20px 50px rgba(2,6,23,0.2)}
+    .form-row{display:flex;gap:8px;margin-top:10px}
+    .form-row > *{flex:1}
+    .modal .title{font-size:1.1rem;color:#0f172a;margin-bottom:8px}
+    .helper{font-size:0.85rem;color:var(--muted);margin-top:6px}
+    .msg {margin-top:12px;padding:10px;border-radius:8px;display:none}
+    .msg.success{background:#ecfdf5;color:#065f46}
+    .msg.error{background:#fff1f2;color:#7f1d1d}
+
+    /* responsive */
+    @media (max-width:640px){
+      .top-row{flex-direction:column;align-items:stretch}
+      .controls{flex-direction:column;align-items:stretch}
+      td.actions{justify-content:flex-end}
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <h1>لوحة إدارة المدرسة</h1>
+        <div class="small">إدارة بيانات الطلاب — عرض، إضافة، تعديل، حذف</div>
+      </div>
+      <div class="controls">
+        <input id="baseUrl" type="text" value="http://127.0.0.1:8000" title="Base API URL" />
+        <button id="refreshBtn" class="ghost">تحديث القائمة</button>
+        <button id="openAddBtn">إضافة طالب جديد</button>
+      </div>
+    </header>
+
+    <div class="card">
+      <div class="top-row">
+        <div><span class="badge">Students</span> <span class="small" id="countInfo"></span></div>
+        <div class="small">ملاحظة: يجب أن يكون الـ API شغّالًا على العنوان أعلاه</div>
+      </div>
+
+      <div class="table-wrap">
+        <table id="studentsTable">
+          <thead>
+            <tr>
+              <th style="width:90px">ID</th>
+              <th>الاسم</th>
+              <th style="width:110px">الدرجة</th>
+              <th style="width:170px">العمل</th>
+            </tr>
+          </thead>
+          <tbody id="tbody">
+            <!-- rows injected dynamically -->
+          </tbody>
+        </table>
+      </div>
+
+      <div class="helper" id="lastOp"></div>
+    </div>
+  </div>
+
+  <!-- Modal -->
+  <div class="modal-backdrop" id="modalBackdrop">
+    <div class="modal" role="dialog" aria-modal="true">
+      <div class="title" id="modalTitle">إضافة طالب جديد</div>
+      <div>
+        <div class="form-row">
+          <input id="m_id" type="number" placeholder="رقم الطالب (ID)" />
+          <input id="m_name" type="text" placeholder="اسم الطالب" />
+        </div>
+        <div class="form-row">
+          <input id="m_grade" type="number" placeholder="الدرجة" />
+        </div>
+
+        <div style="display:flex;gap:10px;margin-top:14px;justify-content:flex-end">
+          <button id="saveBtn">حفظ</button>
+          <button id="cancelBtn" class="ghost">إلغاء</button>
+        </div>
+
+        <div class="msg success" id="successMsg"></div>
+        <div class="msg error" id="errorMsg"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ---------- Helpers ----------
+    const $ = (id) => document.getElementById(id);
+    const tbody = $('tbody');
+    const countInfo = $('countInfo');
+    const lastOp = $('lastOp');
+    const baseUrlInput = $('baseUrl');
+
+    let studentsCache = [];
+
+    function apiUrl(path) {
+      const base = baseUrlInput.value.replace(/\/+$/,'');
+      return base + path;
+    }
+
+    function showMsg(text, success=true) {
+      lastOp.textContent = text;
+      lastOp.style.color = success ? 'var(--success)' : 'var(--danger)';
+      setTimeout(()=> lastOp.textContent = '', 3500);
+    }
+
+    // ---------- Fetch & Render ----------
+    async function fetchStudents() {
+      tbody.innerHTML = '<tr><td colspan="4" class="small">جارٍ التحميل...</td></tr>';
+      try {
+        const res = await fetch(apiUrl('/students/'));
+        if(!res.ok) throw new Error('Server returned ' + res.status);
+        const data = await res.json();
+        studentsCache = data;
+        renderTable(data);
+        countInfo.textContent = `${data.length} طلاب`;
+      } catch (err) {
+        tbody.innerHTML = '<tr><td colspan="4" class="small" style="color:#b91c1c">فشل جلب البيانات — تأكد من تشغيل الـ API</td></tr>';
+        countInfo.textContent = '';
+        console.error(err);
+      }
+    }
+
+    function renderTable(list) {
+      if (!Array.isArray(list) || list.length===0) {
+        tbody.innerHTML = '<tr><td colspan="4" class="small">لا يوجد طلاب حتى الآن</td></tr>';
+        return;
+      }
+      tbody.innerHTML = '';
+      list.forEach(s => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${s.id}</td>
+          <td>${escapeHtml(s.name)}</td>
+          <td>${s.grade}</td>
+          <td class="actions">
+            <button class="ghost" onclick="openEdit(${s.id})">تعديل</button>
+            <button style="background:#f59e0b;color:white;border:none;border-radius:8px;padding:8px 10px" onclick="cloneStudent(${s.id})">نسخ</button>
+            <button class="danger" onclick="deleteStudent(${s.id})">حذف</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str).replace(/[&<>"']/g, function(m){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;', "'":"&#39;"})[m]; });
+    }
+
+    // ---------- Modal logic ----------
+    const modalBackdrop = $('modalBackdrop');
+    const modalTitle = $('modalTitle');
+    const m_id = $('m_id');
+    const m_name = $('m_name');
+    const m_grade = $('m_grade');
+    const saveBtn = $('saveBtn');
+    const cancelBtn = $('cancelBtn');
+    const successMsg = $('successMsg');
+    const errorMsg = $('errorMsg');
+    let editMode = false; // false = create, true = edit
+    let editingId = null;
+
+    function openAdd() {
+      editMode = false;
+      editingId = null;
+      modalTitle.textContent = 'إضافة طالب جديد';
+      m_id.value = '';
+      m_name.value = '';
+      m_grade.value = '';
+      showModal();
+    }
+
+    function openEdit(id) {
+      const s = studentsCache.find(x => x.id === id);
+      if (!s) return alert('الطالب غير موجود');
+      editMode = true;
+      editingId = id;
+      modalTitle.textContent = `تعديل بيانات الطالب (ID: ${id})`;
+      m_id.value = s.id;
+      m_name.value = s.name;
+      m_grade.value = s.grade;
+      showModal();
+    }
+
+    function cloneStudent(id) {
+      const s = studentsCache.find(x => x.id === id);
+      if (!s) return;
+      editMode = false;
+      editingId = null;
+      modalTitle.textContent = 'إضافة (نسخة عن طالب موجود)';
+      m_id.value = '';
+      m_name.value = s.name + ' (نسخة)';
+      m_grade.value = s.grade;
+      showModal();
+    }
+
+    function showModal(){
+      errorMsg.style.display = 'none';
+      successMsg.style.display = 'none';
+      modalBackdrop.style.display = 'flex';
+    }
+    function hideModal(){
+      modalBackdrop.style.display = 'none';
+    }
+    cancelBtn.addEventListener('click', hideModal);
+    modalBackdrop.addEventListener('click', (e)=> { if(e.target === modalBackdrop) hideModal(); });
+
+    // ---------- CRUD actions ----------
+    async function createStudentAPI(student) {
+      const res = await fetch(apiUrl('/students/'), {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(student)
+      });
+      return res;
+    }
+
+    async function updateStudentAPI(id, student) {
+      const res = await fetch(apiUrl(`/students/${id}`), {
+        method:'PUT',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(student)
+      });
+      return res;
+    }
+
+    async function deleteStudentAPI(id) {
+      const res = await fetch(apiUrl(`/students/${id}`), {
+        method:'DELETE'
+      });
+      return res;
+    }
+
+    saveBtn.addEventListener('click', async () => {
+      errorMsg.style.display = 'none';
+      successMsg.style.display = 'none';
+
+      const idVal = Number(m_id.value);
+      const nameVal = m_name.value.trim();
+      const gradeVal = Number(m_grade.value);
+
+      if (!nameVal) { errorMsg.style.display='block'; errorMsg.textContent='الاسم مطلوب'; return; }
+      if (!Number.isInteger(idVal) || idVal <= 0) { errorMsg.style.display='block'; errorMsg.textContent='أدخل ID صحيح (عدد صحيح أكبر من صفر)'; return; }
+      if (!Number.isFinite(gradeVal)) { errorMsg.style.display='block'; errorMsg.textContent='أدخل درجة صحيحة'; return; }
+
+      const payload = { id: idVal, name: nameVal, grade: gradeVal };
+
+      try {
+        if (editMode) {
+          const res = await updateStudentAPI(editingId, payload);
+          if (res.ok) {
+            successMsg.style.display='block';
+            successMsg.textContent = 'تم تحديث بيانات الطالب بنجاح';
+            await fetchStudents();
+            setTimeout(()=> hideModal(), 700);
+          } else {
+            const txt = await res.text();
+            errorMsg.style.display='block';
+            errorMsg.textContent = `فشل التحديث: ${res.status} — ${txt}`;
+          }
+        } else {
+          const res = await createStudentAPI(payload);
+          if (res.ok) {
+            successMsg.style.display='block';
+            successMsg.textContent = 'تم إضافة الطالب بنجاح';
+            await fetchStudents();
+            setTimeout(()=> hideModal(), 700);
+          } else {
+            const txt = await res.text();
+            errorMsg.style.display='block';
+            errorMsg.textContent = `فشل الإضافة: ${res.status} — ${txt}`;
+          }
+        }
+      } catch (err) {
+        console.error(err);
+        errorMsg.style.display='block';
+        errorMsg.textContent = 'خطأ في الاتصال بالـ API';
+      }
+    });
+
+    async function deleteStudent(id) {
+      if (!confirm('هل أنت متأكد من حذف هذا الطالب؟')) return;
+      try {
+        const res = await deleteStudentAPI(id);
+        if (res.ok) {
+          showMsg('تم حذف الطالب بنجاح', true);
+          await fetchStudents();
+        } else {
+          const txt = await res.text();
+          showMsg('فشل الحذف: ' + res.status + ' — ' + txt, false);
+        }
+      } catch (err) {
+        showMsg('خطأ في الاتصال بالـ API', false);
+      }
+    }
+
+    // ---------- bind UI ----------
+    $('openAddBtn').addEventListener('click', openAdd);
+    $('refreshBtn').addEventListener('click', fetchStudents);
+
+    // load initially
+    fetchStudents();
+
+    // expose functions to global for buttons in table
+    window.openEdit = openEdit;
+    window.deleteStudent = deleteStudent;
+    window.cloneStudent = cloneStudent;
+
+  </script>
+</body>
+</html>
